@@ -1,0 +1,102 @@
+version: '3'
+
+services:
+  spark-master:
+    image: mesosphere/spark:latest
+    hostname: "spark-master"
+    command: ./bin/spark-class org.apache.spark.deploy.master.Master -h spark-master
+    environment:
+      SERVICE_NAME: "spark-master"
+      SPARK_USER: "root"
+      SPARK_MASTER_PORT: 7077
+      SPARK_CONF_DIR: /conf
+      SPARK_PUBLIC_DNS: localhost
+      SPARK_MASTER_WEBUI_PORT: 18081
+    expose:
+      - 17001
+      - 17002
+      - 17003
+      - 17004
+      - 17005
+      - 17006
+      - 7077
+      - 16066
+    ports:
+      - 16066:16066
+      - 7077:7077
+      - 18081:18081
+    networks:
+      - sparknet
+
+  spark-worker:
+    image: mesosphere/spark:latest
+    hostname: "spark-worker"
+    command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      SERVIVE_NAME: "spark-worker"
+      SPARK_USER: "root"
+      SPARK_CONF_DIR: /conf
+      SPARK_WORKER_CORES: 16
+      SPARK_WORKER_MEMORY: 32g
+      SPARK_WORKER_PORT: 18881
+      SPARK_PUBLIC_DNS: localhost
+      SPARK_WORKER_WEBUI_PORT: 18082
+    links:
+      - spark-master
+      - zeppelin
+    expose:
+      - 17012
+      - 17013
+      - 17014
+      - 17015
+      - 17016
+      - 18881
+    ports:
+      - 18082  # put 18082:18082 only if single worker
+    networks:
+      - sparknet
+
+  zeppelin:
+    image: apache/zeppelin:0.8.1
+    hostname: zeppelin
+    environment:
+      ZEPPELIN_PORT: 18080
+      SPARK_MASTER: spark://spark-master:7077
+      MASTER: local[*]
+    links:
+      - spark-master
+    ports:
+      - 18080:18080
+    volumes:
+      - ./local-data-files/zeppelin/conf:/zeppelin/conf
+      - ./local-data-files/datasets:/zeppelin/datasets
+      - ./local-data-files/notebooks:/zeppelin/notebook  # careful, singular in container
+      - ./local-data-files/jars:/zeppelin/jars
+      - ./local-data-files/logs:/zeppelin/logs
+    networks:
+      - sparknet
+
+  graphite:
+    image: graphiteapp/graphite-statsd
+    hostname: graphite
+    ports:
+      - 80:80
+      - 81:81
+      - 2003-2004:2003-2004
+      - 2023-2024:2023-2024
+      - 8125:8125/udp
+      - 8126:8126
+    networks:
+      - grafananet
+
+  grafana:
+    image: grafana/grafana
+    hostname: grafana
+    ports:
+      - 3000:3000
+    networks:
+      - grafananet
+
+networks:
+  sparknet:
+  grafananet:
